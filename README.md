@@ -41,5 +41,5 @@ orchestrate as much as possible.
 
 ## similar projects
 
-https://www.xyplorer.com/index.php
-https://www.gpsoft.com.au
+* https://www.xyplorer.com/index.php
+* https://www.gpsoft.com.au
