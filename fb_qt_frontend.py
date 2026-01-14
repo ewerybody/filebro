@@ -4,6 +4,7 @@ from multiprocessing.connection import Client, Connection
 from PySide6 import QtCore, QtGui, QtWidgets
 
 import fb_common
+import fb_config
 import fb_ui.simple
 
 
@@ -59,27 +60,24 @@ class BackendConnection(QtCore.QObject):
 
     def link_up(self):
         """Connect to the filebro backend."""
-        for port in range(fb_common.LISTEN_ON_PORT, fb_common.LISTEN_MAX_PORT):
-            try:
-                self._address = ('localhost', port)
-                print(f'trying to connect ... {self._address}')
-                self._connection = Client(self._address, authkey=fb_common.KEY)
-                self.connected = True
-                print(f'Connected to backend at {self._connection}')
-                self._listener = BackendListener(self, self._connection)
-                self._listener.message_received.connect(self.message_received.emit)
-                self._listener.error.connect(self.error.emit)
-                self._listener.finished.connect(self._listener.deleteLater)
-                self._listener.start()
+        try:
+            self._address = ('localhost', fb_config.general.port)
+            print(f'trying to connect ... {self._address}')
+            self._connection = Client(self._address, authkey=fb_common.KEY)
+            self.connected = True
+            print(f'Connected to backend at {self._connection}')
+            self._listener = BackendListener(self, self._connection)
+            self._listener.message_received.connect(self.message_received.emit)
+            self._listener.error.connect(self.error.emit)
+            self._listener.finished.connect(self._listener.deleteLater)
+            self._listener.start()
 
-                return True
-            except Exception as error:
-                print(error)
-                continue
+            return True
+        except Exception as error:
+            print(error)
 
         raise ConnectionError(
-            f'Could not connect to backend on ports from {fb_common.LISTEN_ON_PORT} '
-            f'to {fb_common.LISTEN_MAX_PORT}! Giving up!'
+            f'Could not connect to backend on port {fb_config.general.port} Giving up!'
         )
         return False
 

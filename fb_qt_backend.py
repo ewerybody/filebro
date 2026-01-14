@@ -9,6 +9,7 @@ from PySide6 import QtCore, QtGui, QtWidgets
 
 import fb_drivers
 import fb_common
+import fb_config
 
 
 class FileBroBackend(QtWidgets.QApplication):
@@ -123,18 +124,23 @@ class ClientListener(QtCore.QThread):
             print(f"We're already listening!! {self._listener}")
             return
 
-        for port in range(fb_common.LISTEN_ON_PORT, fb_common.LISTEN_MAX_PORT):
+        from_port, to_port = (
+            fb_config.general.port,
+            fb_config.general.port + fb_common.LISTEN_MAX_PORT,
+        )
+        for port in range(from_port, to_port):
             try:
                 self._listener = Listener(('localhost', port), authkey=fb_common.KEY)
                 print(f'👂 Listening for UI connections on {self._listener.address}')
+                fb_config.general.port = port
                 return
 
             except OSError:
                 continue
 
         raise ConnectionError(
-            f'Could not start listening on ports from {fb_common.LISTEN_ON_PORT} '
-            f'to {fb_common.LISTEN_MAX_PORT}! Giving up!'
+            f'Could not start listening on ports from {from_port} '
+            f'to {to_port}! Giving up!'
         )
 
     def run(self):
