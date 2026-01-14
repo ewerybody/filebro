@@ -1,6 +1,6 @@
 # filebro
 
-# the big picture
+## the big picture
 Filebro is going to be an easy to use day to day file browser.
 From the surface it's going to look lightweight but it offers extensive and
 foremost extensible functionality under the hood.
@@ -16,7 +16,7 @@ Enabling this kind of utilization for as many different tasks imaginable the
 implementation of such a task should be super easy and the backend will try to
 orchestrate as much as possible.
 
-# first steps
+## first steps
 - [ ] backend
   - [x] listens to any number of new clients randomly connecting/disconnecting
   - [x] gracefully closing connections
