@@ -126,7 +126,7 @@ class ClientListener(QtCore.QThread):
 
         from_port, to_port = (
             fb_config.general.port,
-            fb_config.general.port + fb_common.LISTEN_MAX_PORT,
+            fb_config.general.port + fb_config.general.port_range,
         )
         for port in range(from_port, to_port):
             try:
@@ -227,9 +227,10 @@ class Navigation(QtCore.QObject):
         self._drivers = fb_drivers.get_all()
 
     def lookup(self, message):
+        path = message['nav']
         print(f'{self} looking up: {message} ...')
         for name, driver in self._drivers.items():
-            if driver.matches(message['nav']):
+            if driver.matches(path):
                 break
         else:
             message['nav error'] = 'Could not Resolve path!'
@@ -237,7 +238,7 @@ class Navigation(QtCore.QObject):
             return
 
         try:
-            files, dirs, details = driver.lookup(message['nav'])
+            files, dirs, details = driver.lookup(path)
             message['files'] = files
             message['dirs'] = dirs
             message['details'] = details

@@ -1,3 +1,7 @@
+"""
+FileBro configuration/settings subsystem.
+"""
+
 import os
 import json
 
@@ -114,6 +118,8 @@ class _General(_Settings):
         super().__init__('general')
 
         self.port: int = None
+        self.port_range: int = None
+
 
 class _Navigation(_Settings):
     def __init__(self):
@@ -127,18 +133,99 @@ class _Navigation(_Settings):
         self._history: list[str] = None
 
 
-
 general = _General()
 navigation = _Navigation()
 
 
 def _check_variables():
-    for item in os.scandir(_THIS_DIR):
-        if item.is_dir():
+    defaults = {}
+    for item in os.scandir(_DEFAULTS_DIR):
+        if not item.is_file():
             continue
-        if not item.name.endswith(_EXT):
+        base, ext = os.path.splitext(item.name)
+        if ext.lower() != _EXT:
             continue
-        name = os.path.splitext(item.name)[0]
+        defaults[base] = load_json(item.path)
+
+    with open(__file__) as file_obj:
+        content = file_obj.read()
+
+    # get code in chunks, except for generated ones
+    chunks = []
+    insert_index: int = -1
+    this_chunk = []
+    for i, line in enumerate(content.split('\n')):
+        if not any(line.startswith(x) for x in ('def ', 'class ', 'if __name__ == ')):
+            this_chunk.append(line)
+            continue
+
+        if not this_chunk[0].startswith('class _') or not this_chunk[0].endswith(
+            '(_Settings):'
+        ):
+            chunks.append(this_chunk.copy())
+        elif insert_index == -1:
+            insert_index = len(chunks)
+
+        this_chunk.clear()
+        this_chunk.append(line)
+
+    chunks.append(this_chunk.copy())
+
+    # generate target classes code
+    i4 = ' ' * 4
+    i8 = 2 * i4
+    for name, data in defaults.items():
+        this_chunk.clear()
+        this_chunk.append(f'class _{name.title()}(_Settings):')
+        this_chunk.append(f'{i4}def __init__(self):')
+        this_chunk.append(f"{i8}super().__init__('{name}')")
+        this_chunk.append('')
+        for key, value in data.items():
+            this_chunk.append(f'{i8}self.{key}: {_get_type_string(value)} = None')
+        this_chunk.append('')
+        this_chunk.append('')
+
+        chunks.insert(insert_index, this_chunk.copy())
+        insert_index += 1
+
+    this_chunk.clear()
+    for name in defaults:
+        this_chunk.append(f'{name} = _{name.title()}()')
+    chunks.insert(insert_index, this_chunk)
+
+    new_content = '\n'.join(line for ch in chunks for line in ch)
+    if new_content == content:
+        print(f'{fb_common.CHECK} Nothing new!')
+        return
+
+    base, ext = os.path.splitext(__file__)
+    new_file_path = f'{base}_new{ext}'
+    with open(new_file_path, 'w', encoding='utf8') as file_obj:
+        file_obj.write(new_content)
+    print(f'{fb_common.CHECK} new content in:\n  {new_file_path}')
+
+
+def _get_type_string(value: bool | float | int | str | list | dict) -> str:
+    if isinstance(value, bool):
+        return 'bool'
+    if isinstance(value, int):
+        return 'int'
+    if isinstance(value, float):
+        return 'float'
+    if isinstance(value, str):
+        return 'str'
+    if isinstance(value, dict):
+        return 'dict'
+    if isinstance(value, list):
+        if not value:
+            return 'list'
+        types: set[str] = set()
+        for element in value:
+            subtype = _get_type_string(element)
+            if subtype in ('list', 'dict'):
+                continue
+            types.add(subtype)
+        return f'list[{", ".join(types)}]'
 
 
 if __name__ == '__main__':
