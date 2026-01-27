@@ -3,6 +3,8 @@ from PySide6 import QtWidgets, QtCore
 
 class FBSimpleUI(QtWidgets.QWidget):
     navigate = QtCore.Signal(str)
+    navigate_back = QtCore.Signal()
+    navigate_forward = QtCore.Signal()
     file_triggered = QtCore.Signal(str)
     dir_triggered = QtCore.Signal(str)
 
@@ -12,20 +14,38 @@ class FBSimpleUI(QtWidgets.QWidget):
 
     def set_items(self, message):
         self.url_bar.setText(message.get('nav', ''))
-        self._model.set_items(message.get('dirs', []), message.get('files', []))
+        self._file_list.set_items(message.get('dirs', []), message.get('files', []))
 
     def _setup_ui(self):
-        lyt = QtWidgets.QVBoxLayout(self)
+        main_layout = QtWidgets.QVBoxLayout(self)
+        bar_layout = QtWidgets.QHBoxLayout()
+        self.nav_button_back = QtWidgets.QPushButton('<')
+        self.nav_button_back.setMaximumWidth(40)
+        self.nav_button_back.clicked.connect(self.navigate_back.emit)
+        self.nav_button_forward = QtWidgets.QPushButton('>')
+        self.nav_button_forward.setMaximumWidth(40)
+        self.nav_button_forward.clicked.connect(self.navigate_forward.emit)
         self.url_bar = QtWidgets.QLineEdit(self)
-        lyt.addWidget(self.url_bar)
+        bar_layout.addWidget(self.nav_button_back)
+        bar_layout.addWidget(self.nav_button_forward)
+        bar_layout.addWidget(self.url_bar)
 
-        self._model = SimpleDirItemModel(self)
-        self._file_list = QtWidgets.QListView(self)
-        self._file_list.setModel(self._model)
+        # bar_layout.setStretch(0, 0)
+        # bar_layout.setStretch(1, 0)
+        # bar_layout.setStretch(2, 3)
+        main_layout.addLayout(bar_layout)
+
+        self._file_list = FileListView(self)
         self._file_list.activated.connect(self._activated)
-        lyt.addWidget(self._file_list)
+        self._file_list.navigate_back.connect(self.navigate_back.emit)
+        self._file_list.navigate_forward.connect(self.navigate_forward.emit)
+        main_layout.addWidget(self._file_list)
 
         self.url_bar.returnPressed.connect(self._navigate)
+
+    def set_nav_buttons(self, back: bool, forward: bool) -> None:
+        self.nav_button_back.setEnabled(back)
+        self.nav_button_forward.setEnabled(forward)
 
     def _navigate(self):
         url = self.url_bar.text().strip()
@@ -38,11 +58,45 @@ class FBSimpleUI(QtWidgets.QWidget):
 
     @QtCore.Slot(QtCore.QModelIndex)
     def _activated(self, index):
-        name, is_dir = self._model.get_item(index)
+        name, is_dir = self._file_list.get_item(index)
         if is_dir:
             self.dir_triggered.emit(name)
         else:
             self.file_triggered.emit(name)
+
+    def mousePressEvent(self, event):
+        if event.button() == QtCore.Qt.MouseButton.BackButton:
+            self.navigate_back.emit()
+        if event.button() == QtCore.Qt.MouseButton.ForwardButton:
+            self.navigate_forward.emit()
+        return super().mousePressEvent(event)
+
+
+class FileListView(QtWidgets.QListView):
+    navigate_back = QtCore.Signal()
+    navigate_forward = QtCore.Signal()
+
+    def __init__(self, parent):
+        super().__init__(parent)
+        self.setModel(SimpleDirItemModel(self))
+
+    def set_items(self, dirs: list[str], files: list[str]):
+        model = self.model()
+        if isinstance(model, SimpleDirItemModel):
+            model.set_items(dirs, files)
+
+    def get_item(self, index: QtCore.QModelIndex) -> tuple[str, bool]:
+        model = self.model()
+        if isinstance(model, SimpleDirItemModel):
+            return model.get_item(index)
+        return '', False
+
+    def mousePressEvent(self, event):
+        if event.button() == QtCore.Qt.MouseButton.BackButton:
+            self.navigate_back.emit()
+        if event.button() == QtCore.Qt.MouseButton.ForwardButton:
+            self.navigate_forward.emit()
+        return super().mousePressEvent(event)
 
 
 class SimpleDirItemModel(QtCore.QAbstractListModel):
@@ -66,18 +120,22 @@ class SimpleDirItemModel(QtCore.QAbstractListModel):
             return None
 
         item_name, is_dir = self.get_item(index)
+        if not item_name:
+            return None
 
         if role == QtCore.Qt.ItemDataRole.DisplayRole:
             return item_name
 
         if role == QtCore.Qt.ItemDataRole.DecorationRole:
             if is_dir:
-                return self._icon_provider.icon(QtWidgets.QFileIconProvider.IconType.Folder)
+                return self._icon_provider.icon(
+                    QtWidgets.QFileIconProvider.IconType.Folder
+                )
             return self._icon_provider.icon(QtWidgets.QFileIconProvider.IconType.File)
 
         return None
 
-    def get_item(self, index):
+    def get_item(self, index: QtCore.QModelIndex) -> tuple[str, bool]:
         row = index.row()
         len_dirs = len(self._dir_list)
         if row < len_dirs:

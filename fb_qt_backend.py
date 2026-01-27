@@ -243,6 +243,7 @@ class Navigation(QtCore.QObject):
             message['dirs'] = dirs
             message['details'] = details
             self.results.emit(message)
+            fb_config.navigation._last_directory = path
 
         except fb_drivers.NeedAuthentication:
             self.request_auth.emit(message)
