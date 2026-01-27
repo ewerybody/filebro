@@ -1,5 +1,15 @@
 {
     "cSpell.words": [
         "filebro"
-    ]
+    ],
+    "python.envFile": "${workspaceFolder}/.vscode/.env",
+    "python.testing.unittestArgs": [
+        "-v",
+        "-s",
+        "./test",
+        "-p",
+        "test_*.py"
+    ],
+    "python.testing.pytestEnabled": false,
+    "python.testing.unittestEnabled": true,
 }
