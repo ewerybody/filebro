@@ -2,8 +2,13 @@
 FileBro configuration/settings subsystem.
 """
 
+from typing import Any, Iterator
+
 import os
 import json
+import time
+import base64
+import hashlib
 
 import fb_common
 
@@ -21,12 +26,12 @@ else:
     raise RuntimeError(f'Unsupported System: {os.name}')
 
 
-def load_json(json_path: str) -> dict[str, bool | int | str | list[str]]:
+def load_json(json_path: str) -> dict[str, Any]:
     with open(json_path, encoding='utf8') as file_object:
         return json.load(file_object)
 
 
-def dump_json(json_path: str, data: dict[str, bool | int | str | list[str]]):
+def dump_json(json_path: str, data: dict[str, Any]):
     os.makedirs(os.path.dirname(json_path), exist_ok=True)
     with open(json_path, 'w', encoding='utf8') as file_object:
         return json.dump(data, file_object, indent=2, sort_keys=True)
@@ -159,9 +164,7 @@ def _check_variables():
             this_chunk.append(line)
             continue
 
-        if not this_chunk[0].startswith('class _') or not this_chunk[0].endswith(
-            '(_Settings):'
-        ):
+        if not this_chunk[0].startswith('class _') or not this_chunk[0].endswith('(_Settings):'):
             chunks.append(this_chunk.copy())
         elif insert_index == -1:
             insert_index = len(chunks)
@@ -226,6 +229,66 @@ def _get_type_string(value: bool | float | int | str | list | dict) -> str:
                 continue
             types.add(subtype)
         return f'list[{", ".join(types)}]'
+
+
+def b64hash(path):
+    return base64.urlsafe_b64encode(hashlib.sha256(path.encode()).digest())
+
+
+class _Cache:
+    def __init__(self):
+        self.path = os.path.join(PATH, 'cache')
+
+    def get_items(self, path: str, driver_name: str) -> tuple[list[str], list[str]]:
+        """Retrieve lists of directories and files for given path."""
+        dir_name = os.path.join(self.path, driver_name)
+        path_hash = b64hash(path)
+        dirs = self._read_lines(dir_name, path_hash, 'dirs')
+        files = self._read_lines(dir_name, path_hash, 'files')
+        return dirs, files
+
+    def get_details(self, path: str, driver_name: str, specs: list[str]):
+        pass
+
+    def iter_write(
+        self, path: str, driver_name: str, dirs: list[str], files: list[str]
+    ) -> Iterator[tuple[int, int]]:
+        dir_name = os.path.join(self.path, driver_name)
+        os.makedirs(dir_name, exist_ok=True)
+        path_hash = b64hash(path)
+        num_dirs, num_files = len(dirs), len(files)
+        dump_json(
+            os.path.join(dir_name, f'{path_hash}{_EXT}'),
+            {
+                'num_dirs': num_dirs,
+                'num_files': num_files,
+                't': time.time(),
+            },
+        )
+        yield num_dirs, num_files
+        self._write_lines(dir_name, path_hash, 'dirs', dirs)
+        yield num_dirs, num_files
+        self._write_lines(dir_name, path_hash, 'files', files)
+        yield num_dirs, num_files
+
+    def write_details(self, path: str, driver_name: str, details: dict[str, Any]) -> None:
+        dir_name = os.path.join(self.path, driver_name)
+        for name, values in details.items():
+            self._write_lines(dir_name, b64hash(path), name, values)
+
+    def _write_lines(self, dir_name: str, path_hash: str, name: str, items: list[str]) -> None:
+        with open(os.path.join(dir_name, f'{path_hash}.{name}'), 'w', encoding='utf8') as file_obj:
+            file_obj.write('\n'.join(items))
+
+    def _read_lines(self, dir_name: str, path_hash: str, name: str) -> list[str]:
+        file_path = os.path.join(dir_name, f'{path_hash}.{name}')
+        if not os.path.isfile(file_path):
+            return []
+        with open(file_path, encoding='utf8') as file_obj:
+            return file_obj.readlines()
+
+
+cache = _Cache()
 
 
 if __name__ == '__main__':

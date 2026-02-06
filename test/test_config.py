@@ -79,9 +79,7 @@ def _make_test_filename(name: str) -> tuple[str, str]:
         if not os.path.isfile(path):
             return path, test_name
 
-    raise RuntimeError(
-        f'Could not make file name for "{name}" in {fb_config._DEFAULTS_DIR}'
-    )
+    raise RuntimeError(f'Could not make file name for "{name}" in {fb_config._DEFAULTS_DIR}')
 
 
 if __name__ == '__main__':
